@@ -28,8 +28,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,7 +44,7 @@ import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ExperimentalComposeApi
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,9 +60,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import dev.shreyaspatil.capturable.capturable
+import dev.shreyaspatil.capturable.controller.CaptureResult
 import dev.shreyaspatil.capturable.controller.rememberCaptureController
 import dev.shreyaspatil.capturableExample.ui.theme.CapturableExampleTheme
-import dev.shreyaspatil.capturableExample.ui.theme.LightGray
 import dev.shreyaspatil.capturableExample.ui.theme.Teal200
 import kotlinx.coroutines.launch
 
@@ -79,15 +79,27 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class, ExperimentalComposeApi::class)
+@Immutable
+sealed interface TicketScreenState {
+    @JvmInline
+    @Immutable
+    value class HasImage(val bitmap: ImageBitmap) : TicketScreenState
+
+    @JvmInline
+    @Immutable
+    value class HasError(val error: String) : TicketScreenState
+
+    @Immutable
+    data object Empty : TicketScreenState
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun TicketScreen() {
-    val captureController = rememberCaptureController()
     val uiScope = rememberCoroutineScope()
 
-    // This will hold captured bitmap
-    // So that we can demo it
-    var ticketBitmap: ImageBitmap? by remember { mutableStateOf(null) }
+    var state by remember { mutableStateOf<TicketScreenState>(TicketScreenState.Empty) }
+    val captureController = rememberCaptureController()
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -95,39 +107,61 @@ fun TicketScreen() {
             .padding(24.dp)
     ) {
         // The content to be captured ⬇️
-        Ticket(modifier = Modifier.capturable(captureController))
+        Ticket(
+            modifier = Modifier.capturable(captureController)
+        )
 
         Spacer(modifier = Modifier.size(32.dp))
 
         // Captures ticket bitmap on click
-        Button(
-            onClick = {
-                uiScope.launch {
-                    ticketBitmap = captureController.captureAsync().await()
+        Button(onClick = {
+            uiScope.launch {
+                val result = captureController.capture()
+                state = when (result) {
+                    is CaptureResult.Success -> TicketScreenState.HasImage(result.bitmap)
+                    is CaptureResult.Error -> TicketScreenState.HasError(
+                        result.error.localizedMessage
+                            ?: result.error.message
+                            ?: result.error.stackTraceToString()
+                    )
                 }
             }
-        ) {
+        }) {
             Text("Preview Ticket Image")
         }
 
         // When Ticket's Bitmap image is captured, show preview in dialog
-        ticketBitmap?.let { bitmap ->
+        if (state is TicketScreenState.HasImage) {
             Dialog(onDismissRequest = { }) {
-                Column(
-                    modifier = Modifier
-                        .background(LightGray)
-                        .padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("Preview of Ticket image \uD83D\uDC47")
-                    Spacer(Modifier.size(16.dp))
-                    Image(
-                        bitmap = bitmap,
-                        contentDescription = "Preview of ticket"
-                    )
-                    Spacer(Modifier.size(4.dp))
-                    Button(onClick = { ticketBitmap = null }) {
-                        Text("Close Preview")
+                Surface {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("Preview of Ticket image \uD83D\uDC47")
+                        Spacer(Modifier.size(16.dp))
+                        Image(
+                            bitmap = (state as TicketScreenState.HasImage).bitmap,
+                            contentDescription = "Preview of ticket"
+                        )
+                        Spacer(Modifier.size(4.dp))
+                        Button(onClick = { state = TicketScreenState.Empty }) {
+                            Text("Close Preview")
+                        }
+                    }
+                }
+            }
+        }
+
+        if (state is TicketScreenState.HasError) {
+            Dialog(onDismissRequest = { }) {
+                Surface {
+                    Box(
+                        modifier = Modifier.padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Preview of Ticket image \uD83D\uDC47")
+                        Text((state as TicketScreenState.HasError).error)
                     }
                 }
             }
@@ -163,7 +197,7 @@ fun BookingConfirmedContent() {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "Booking Confirmed",
+            text = "Booking Confirmed",
             style = MaterialTheme.typography.h4,
             modifier = Modifier.weight(0.8f)
         )
@@ -180,14 +214,17 @@ fun BookingConfirmedContent() {
 @Composable
 fun MovieTitle() {
     Text(
-        "Jetpack Compose - The Movie",
+        text = "Jetpack Compose - The Movie",
         style = MaterialTheme.typography.h6.copy(fontWeight = FontWeight.Bold)
     )
 }
 
 @Composable
 fun BookingDetail() {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
         Column {
             Text("Sat, 1 Jan", style = MaterialTheme.typography.caption)
             Text("12:45 PM", style = MaterialTheme.typography.subtitle2)
@@ -208,7 +245,7 @@ fun BookingDetail() {
 @Composable
 fun BookingQRCode() {
     Text(
-        "----- SCAN QR CODE AT CINEMA -----",
+        text = "----- SCAN QR CODE AT CINEMA -----",
         style = MaterialTheme.typography.overline
     )
     Icon(

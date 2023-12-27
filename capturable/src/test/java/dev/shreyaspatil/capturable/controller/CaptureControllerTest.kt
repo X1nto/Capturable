@@ -25,7 +25,6 @@
 package dev.shreyaspatil.capturable.controller
 
 import android.graphics.Bitmap
-import androidx.compose.runtime.ExperimentalComposeApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -37,8 +36,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-@Suppress("DeferredResultUnused")
-@OptIn(ExperimentalComposeApi::class)
 class CaptureControllerTest {
 
     private val controller = CaptureController()
@@ -49,7 +46,7 @@ class CaptureControllerTest {
         val captureRequestDeferred = asyncOnUnconfinedDispatcher { getRecentCaptureRequest() }
 
         // When: Captured
-        controller.captureAsync()
+        controller.capture {}
 
         val captureRequest = captureRequestDeferred.await()
         val expectedConfig = Bitmap.Config.ARGB_8888
@@ -67,7 +64,7 @@ class CaptureControllerTest {
         val expectedConfig = Bitmap.Config.RGB_565
 
         // When: Captured
-        controller.captureAsync(expectedConfig)
+        controller.capture(expectedConfig) {}
 
         val captureRequest = captureRequestDeferred.await()
 

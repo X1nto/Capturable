@@ -29,9 +29,6 @@ import android.graphics.Picture
 import android.os.Build
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.CacheDrawModifierNode
@@ -45,6 +42,7 @@ import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.node.DelegatingNode
 import androidx.compose.ui.node.ModifierNodeElement
 import dev.shreyaspatil.capturable.controller.CaptureController
+import dev.shreyaspatil.capturable.controller.CaptureResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,7 +82,7 @@ import kotlinx.coroutines.withContext
 @Deprecated(
     "This Composable method has been deprecated & will be removed in the future releases. " +
         "Use Modifier `capturable()` directly.",
-    level = DeprecationLevel.WARNING
+    level = DeprecationLevel.ERROR
 )
 @Composable
 fun Capturable(
@@ -93,21 +91,8 @@ fun Capturable(
     onCaptured: (ImageBitmap?, Throwable?) -> Unit,
     content: @Composable () -> Unit
 ) {
-    val updatedOnCaptured by rememberUpdatedState(newValue = onCaptured)
-
     Column(modifier = modifier.capturable(controller)) {
         content()
-    }
-
-    LaunchedEffect(key1 = controller) {
-        controller.captureRequests.collect { request ->
-            try {
-                val imageBitmap = request.imageBitmapDeferred.await()
-                updatedOnCaptured(imageBitmap, null)
-            } catch (error: Throwable) {
-                updatedOnCaptured(null, error)
-            }
-        }
     }
 }
 
@@ -200,14 +185,13 @@ private class CapturableModifierNode(
         super.onAttach()
         coroutineScope.launch {
             controller.captureRequests.collect { request ->
-                val completable = request.imageBitmapDeferred
                 try {
                     val bitmap = withContext(Dispatchers.Default) {
                         picture.asBitmap(request.config)
                     }
-                    completable.complete(bitmap.asImageBitmap())
+                    request.onCapture(CaptureResult.Success(bitmap.asImageBitmap()))
                 } catch (error: Throwable) {
-                    completable.completeExceptionally(error)
+                    request.onCapture(CaptureResult.Error(error))
                 }
             }
         }

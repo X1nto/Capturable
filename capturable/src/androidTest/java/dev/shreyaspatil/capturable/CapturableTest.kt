@@ -27,13 +27,13 @@ package dev.shreyaspatil.capturable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.Text
-import androidx.compose.runtime.ExperimentalComposeApi
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import dev.shreyaspatil.capturable.controller.CaptureController
+import dev.shreyaspatil.capturable.controller.CaptureResult
 import java.math.RoundingMode
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -64,7 +64,7 @@ class CapturableTest {
         }
 
         // When: Content is captured
-        controller.capture()
+        runBlocking { controller.capture() }
 
         // Wait for some time to get a callback
         Thread.sleep(500)
@@ -85,7 +85,7 @@ class CapturableTest {
         assertEquals(expectedWidth, actualWidth)
     }
 
-    @OptIn(ExperimentalComposeUiApi::class, ExperimentalComposeApi::class)
+    @OptIn(ExperimentalComposeUiApi::class)
     @Test
     fun testCapture_withModifier() {
         val controller = CaptureController()
@@ -102,10 +102,8 @@ class CapturableTest {
             }
         }
 
-        // When: Content is captured
-        val futureBitmap = controller.captureAsync()
-
-        val bitmap = runBlocking { futureBitmap.await() }
+        val captureResult = runBlocking { controller.capture() }
+        val bitmap = (captureResult as CaptureResult.Success).bitmap
 
         val expectedHeight = with(composeTestRule.density) { contentHeight.toPx() }.roundToInt()
         val expectedWidth = with(composeTestRule.density) { contentWidth.toPx() }.roundToInt()
